@@ -10,7 +10,9 @@ export type EnrichedAppointment = {
   vet_id: string
   appointment_datetime: string
   status: string
+  reason?: string
   created_at: string
+  updated_at?: string
   client_name: string
   vet_name: string
 }
@@ -63,7 +65,7 @@ export default function AppointmentsList({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full">
       {/* Diagnostic message to show the current user's role */}
       <div className="p-4 bg-gray-100 border rounded-lg">
         <p className="text-sm text-gray-700">
@@ -78,18 +80,20 @@ export default function AppointmentsList({
           <div className="space-y-4">
             {clientAppointments.map((appt) => (
               <div key={`client-${appt.id}`} className="bg-white p-4 rounded-lg shadow-md border">
-                <p>
-                  <strong>Veterinarian:</strong> {appt.vet_name}
-                </p>
-                <p>
-                  <strong>Date:</strong> {formatDate(appt.appointment_datetime)}
-                </p>
-                <p>
-                  <strong>Status:</strong> <span className={`font-semibold ${
-                    appt.status === 'approved' ? 'text-green-600' :
-                    appt.status === 'completed' ? 'text-blue-600' :
-                    appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
-                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <p>
+                    <strong>Veterinarian:</strong> {appt.vet_name}
+                  </p>
+                  <p>
+                    <strong>Date:</strong> {formatDate(appt.appointment_datetime)}
+                  </p>
+                  <p>
+                    <strong>Status:</strong> <span className={`font-semibold ${
+                      appt.status === 'approved' ? 'text-green-600' :
+                      appt.status === 'completed' ? 'text-blue-600' :
+                      appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
+                  </p>
+                </div>
               </div>
             ))}
           </div>
@@ -106,20 +110,22 @@ export default function AppointmentsList({
             <div className="space-y-4">
               {vetAppointments.map((appt) => (
                 <div key={`vet-${appt.id}`} className="bg-white p-4 rounded-lg shadow-md border">
-                  <p>
-                    <strong>Client:</strong> {appt.client_name}
-                  </p>
-                  <p>
-                    <strong>Date:</strong> {formatDate(appt.appointment_datetime)}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> <span className={`font-semibold ${
-                      appt.status === 'approved' ? 'text-green-600' :
-                      appt.status === 'completed' ? 'text-blue-600' :
-                      appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
-                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <p>
+                      <strong>Client:</strong> {appt.client_name}
+                    </p>
+                    <p>
+                      <strong>Date:</strong> {formatDate(appt.appointment_datetime)}
+                    </p>
+                    <p>
+                      <strong>Status:</strong> <span className={`font-semibold ${
+                        appt.status === 'approved' ? 'text-green-600' :
+                        appt.status === 'completed' ? 'text-blue-600' :
+                        appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
+                    </p>
+                  </div>
                   {appt.status === 'pending' && (
-                    <div className="mt-4 flex gap-4">
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={() => handleStatusUpdate(appt.id, 'approved')}
                         disabled={loading}

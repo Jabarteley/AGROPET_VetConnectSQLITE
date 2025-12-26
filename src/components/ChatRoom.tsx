@@ -13,14 +13,23 @@ type Message = {
   created_at: string
 }
 
+type Profile = {
+  name: string | null
+  email: string
+} | null
+
 export default function ChatRoom({
   conversationId,
   initialMessages,
   currentUser,
+  currentUserProfile,
+  otherParticipantProfile,
 }: {
   conversationId: string
   initialMessages: Message[]
   currentUser: User
+  currentUserProfile: Profile
+  otherParticipantProfile: Profile
 }) {
   const supabase = createClient()
   const [messages, setMessages] = useState(initialMessages)
@@ -88,8 +97,15 @@ export default function ChatRoom({
     }
   }
 
+  const getSenderName = (senderId: string) => {
+    if (senderId === currentUser.id) {
+      return currentUserProfile?.name || 'You'
+    }
+    return otherParticipantProfile?.name || 'Them'
+  }
+
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col bg-gray-50 rounded-lg shadow-inner">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div
@@ -98,24 +114,29 @@ export default function ChatRoom({
               msg.sender_id === currentUser.id ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                msg.sender_id === currentUser.id
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              <p>{msg.content}</p>
-              <p className={`text-xs mt-1 ${ msg.sender_id === currentUser.id ? 'text-indigo-200' : 'text-gray-500'}`}>
-                {new Date(msg.created_at).toLocaleTimeString()}
-              </p>
+            <div className="flex flex-col max-w-[70%]">
+              <span className={`text-xs ${msg.sender_id === currentUser.id ? 'text-gray-500 text-right' : 'text-gray-500 text-left'} mb-1`}>
+                {getSenderName(msg.sender_id)}
+              </span>
+              <div
+                className={`px-4 py-2 rounded-xl break-words ${
+                  msg.sender_id === currentUser.id
+                    ? 'bg-indigo-600 text-white rounded-br-none'
+                    : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                }`}
+              >
+                <p>{msg.content}</p>
+                <p className={`text-xs mt-1 ${ msg.sender_id === currentUser.id ? 'text-indigo-200' : 'text-gray-500'}`}>
+                  {new Date(msg.created_at).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="p-4 border-t">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
+      <div className="p-4 border-t bg-white rounded-b-lg">
+        <form onSubmit={handleSendMessage} className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             value={newMessage}
@@ -125,7 +146,7 @@ export default function ChatRoom({
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Send
           </button>

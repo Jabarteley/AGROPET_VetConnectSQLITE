@@ -58,9 +58,36 @@ export default async function AdminDashboardPage() {
     )
   }
 
+  // Fetch appointment statistics for admin dashboard
+  const { count: totalAppointments } = await supabase
+    .from('appointments')
+    .select('*', { count: 'exact', head: true })
+
+  const { count: pendingAppointments } = await supabase
+    .from('appointments')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending')
+
+  const { count: completedAppointments } = await supabase
+    .from('appointments')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'completed')
+
+  const { count: cancelledAppointments } = await supabase
+    .from('appointments')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'cancelled')
+
+  const appointmentStats = {
+    total: totalAppointments || 0,
+    pending: pendingAppointments || 0,
+    completed: completedAppointments || 0,
+    cancelled: cancelledAppointments || 0
+  }
+
   return (
     <div className="flex flex-col items-center p-4">
-      <AdminDashboard pendingVets={pendingVets} allUsers={allUsers} />
+      <AdminDashboard pendingVets={pendingVets} allUsers={allUsers} appointmentStats={appointmentStats} />
     </div>
   )
 }

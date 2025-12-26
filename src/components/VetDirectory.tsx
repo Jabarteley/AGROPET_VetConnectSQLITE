@@ -81,7 +81,7 @@ export default function VetDirectory() {
       ) : vets.length === 0 ? (
         <p className="text-center text-gray-500">No verified veterinarians found.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {vets.map((vet) => (
             <div key={vet.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col">
               <div className="flex-grow">

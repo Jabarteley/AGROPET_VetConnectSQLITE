@@ -30,6 +30,13 @@ export default async function ConversationPage({ params }: { params: { conversat
     )
   }
   
+  // Fetch current user's profile
+  const { data: currentUserProfile } = await supabase
+    .from('profiles')
+    .select('name, email')
+    .eq('id', user.id)
+    .single();
+
   const otherParticipantId = conversation.participant1_id === user.id ? conversation.participant2_id : conversation.participant1_id;
   
     // Fetch other participant's profile
@@ -62,6 +69,8 @@ export default async function ConversationPage({ params }: { params: { conversat
           conversationId={conversationId}
           initialMessages={initialMessages || []}
           currentUser={user}
+          currentUserProfile={currentUserProfile}
+          otherParticipantProfile={otherParticipantProfile}
         />
       </div>
     </div>

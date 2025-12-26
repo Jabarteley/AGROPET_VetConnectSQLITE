@@ -20,7 +20,14 @@ type UserProfile = {
   created_at: string
 }
 
-export default function AdminDashboard({ pendingVets, allUsers }: { pendingVets: VetProfile[], allUsers: UserProfile[] }) {
+type AppointmentStats = {
+  total: number
+  pending: number
+  completed: number
+  cancelled: number
+}
+
+export default function AdminDashboard({ pendingVets, allUsers, appointmentStats }: { pendingVets: VetProfile[], allUsers: UserProfile[], appointmentStats: AppointmentStats }) {
   const [activeTab, setActiveTab] = useState('verifications')
 
   const handleUserAction = (userId: string, action: 'activate' | 'suspend') => {
@@ -57,6 +64,16 @@ export default function AdminDashboard({ pendingVets, allUsers }: { pendingVets:
             User Management
           </button>
           <button
+            onClick={() => setActiveTab('appointments')}
+            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'appointments'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Appointment Management
+          </button>
+          <button
             onClick={() => setActiveTab('content')}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'content'
@@ -85,6 +102,53 @@ export default function AdminDashboard({ pendingVets, allUsers }: { pendingVets:
         <div>
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">User Management</h2>
           <UserManagement users={allUsers} onUserAction={handleUserAction} />
+        </div>
+      )}
+
+      {activeTab === 'appointments' && (
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Appointment Management</h2>
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <p className="text-gray-600 mb-4">Manage all appointments on the platform</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Total Appointments</h3>
+                  <p className="text-sm text-gray-500">All appointments scheduled</p>
+                </div>
+                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                  {appointmentStats.total}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Pending Appointments</h3>
+                  <p className="text-sm text-gray-500">Appointments awaiting approval</p>
+                </div>
+                <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                  {appointmentStats.pending}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Completed Appointments</h3>
+                  <p className="text-sm text-gray-500">Successfully completed appointments</p>
+                </div>
+                <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                  {appointmentStats.completed}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Cancelled Appointments</h3>
+                  <p className="text-sm text-gray-500">Cancelled appointments</p>
+                </div>
+                <span className="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                  {appointmentStats.cancelled}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

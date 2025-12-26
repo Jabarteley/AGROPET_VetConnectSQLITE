@@ -45,7 +45,7 @@ export default async function MessagesPage() {
   const profileMap = new Map(profiles.map((p) => [p.id, p.name || p.email]))
 
   return (
-    <div className="flex flex-col items-center p-4">
+    <div className="flex flex-col items-center p-4 w-full">
       <div className="w-full max-w-2xl">
         <h1 className="text-3xl font-bold text-gray-800 mb-8">My Conversations</h1>
         <div className="space-y-4">
