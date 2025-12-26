@@ -25,9 +25,9 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="flex flex-col items-center p-4">
-      <div className="w-full max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">User Profile</h1>
+    <div className="flex flex-col items-center p-4 w-full">
+      <div className="w-full max-w-2xl px-4">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center sm:text-left">User Profile</h1>
         <ProfileForm user={user} profile={profile} />
       </div>
     </div>

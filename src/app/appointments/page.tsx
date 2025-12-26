@@ -69,9 +69,9 @@ export default async function AppointmentsPage() {
   }))
 
   return (
-    <div className="flex flex-col items-center p-4">
-      <div className="w-full max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">{getWelcomeMessage()}</h1>
+    <div className="flex flex-col items-center p-4 w-full">
+      <div className="w-full max-w-4xl px-4">
+        <h1 className="text-3xl font-bold text-gray-800 mb-8 text-center sm:text-left">{getWelcomeMessage()}</h1>
         <AppointmentsList
           initialAppointments={enrichedAppointments}
           currentUser={{ id: user.id, role: profile?.role }}
