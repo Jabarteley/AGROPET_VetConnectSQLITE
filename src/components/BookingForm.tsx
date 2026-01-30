@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 
@@ -11,7 +10,6 @@ type VetProfile = {
 }
 
 export default function BookingForm({ user, vet }: { user: User; vet: VetProfile }) {
-  const supabase = createClient()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -19,6 +17,19 @@ export default function BookingForm({ user, vet }: { user: User; vet: VetProfile
   // Form state
   const [appointmentDate, setAppointmentDate] = useState('')
   const [appointmentTime, setAppointmentTime] = useState('')
+  const [reason, setReason] = useState('')
+  const [images, setImages] = useState<File[]>([])
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setImages(prev => [...prev, ...filesArray]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,20 +44,36 @@ export default function BookingForm({ user, vet }: { user: User; vet: VetProfile
 
     const appointmentDateTime = new Date(`${appointmentDate}T${appointmentTime}`)
 
-    const { error } = await supabase.from('appointments').insert({
-      user_id: user.id,
-      vet_id: vet.id,
-      appointment_datetime: appointmentDateTime.toISOString(),
-      status: 'pending',
-    })
+    // Prepare form data for submission
+    const formData = new FormData();
+    formData.append('user_id', user.id);
+    formData.append('vet_id', vet.id);
+    formData.append('appointment_datetime', appointmentDateTime.toISOString());
+    formData.append('status', 'pending');
+    formData.append('reason', reason);
 
-    if (error) {
-      setMessage('Error creating appointment: ' + error.message)
-    } else {
+    // Add images to form data
+    images.forEach((image, index) => {
+      formData.append(`images`, image);
+    });
+
+    try {
+      const response = await fetch('/api/appointments', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create appointment');
+      }
+
       setMessage('Appointment requested successfully! You will be redirected to your appointments page.')
       setTimeout(() => {
         router.push('/appointments')
       }, 2000)
+    } catch (error: any) {
+      setMessage('Error creating appointment: ' + error.message)
     }
     setLoading(false)
   }
@@ -82,6 +109,72 @@ export default function BookingForm({ user, vet }: { user: User; vet: VetProfile
           required
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
         />
+      </div>
+
+      <div>
+        <label htmlFor="reason" className="block text-sm font-medium text-gray-700">
+          Reason for Appointment
+        </label>
+        <textarea
+          id="reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          required
+          rows={3}
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          placeholder="Describe why you're booking this appointment (e.g., symptoms, concerns)"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Upload Images (optional)
+        </label>
+        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+          <div className="space-y-1 text-center">
+            <div className="flex text-sm text-gray-600">
+              <label htmlFor="images" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                <span>Upload images</span>
+                <input
+                  id="images"
+                  name="images"
+                  type="file"
+                  className="sr-only"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+              </label>
+              <p className="pl-1">or drag and drop</p>
+            </div>
+            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+          </div>
+        </div>
+
+        {/* Preview uploaded images */}
+        {images.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Images:</h4>
+            <div className="flex flex-wrap gap-2">
+              {images.map((image, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={URL.createObjectURL(image)}
+                    alt={`Preview ${index + 1}`}
+                    className="h-20 w-20 object-cover rounded border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {message && <p className="text-sm text-center text-gray-600">{message}</p>}

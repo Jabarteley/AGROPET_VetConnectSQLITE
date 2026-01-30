@@ -1,54 +1,53 @@
-'use server'
+'use server';
 
-import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { verifyToken, getUserById } from '@/lib/auth';
+import db from '@/lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function initiateConversation(vetId: string) {
-  const supabase = createClient()
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const decodedToken = verifyToken(token as string);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (!decodedToken) {
+    return redirect('/login');
+  }
+
+  const user = getUserById(decodedToken.userId);
 
   if (!user) {
-    return redirect('/login')
+    return redirect('/login');
   }
 
-  const userId = user.id
+  const userId = user.id;
+
+  interface Conversation {
+    id: string;
+  }
 
   // Check if a conversation already exists between these two users
-  let { data: conversation, error: selectError } = await supabase
-    .from('conversations')
-    .select('id')
-    .or(`and(participant1_id.eq.${userId},participant2_id.eq.${vetId}),and(participant1_id.eq.${vetId},participant2_id.eq.${userId})`)
-    .single()
-
-  if (selectError && selectError.code !== 'PGRST116') { // PGRST116: single row not found
-    console.error('Error checking for existing conversation:', selectError)
-    // For now, redirect to a generic error or home page. In a real app, handle gracefully.
-    return redirect('/')
-  }
+  let conversation = db
+    .prepare(
+      `SELECT id FROM conversations
+       WHERE (participant1_id = ? AND participant2_id = ?)
+       OR (participant1_id = ? AND participant2_id = ?)`
+    )
+    .get(userId, vetId, vetId, userId) as Conversation | undefined;
 
   // If no conversation exists, create a new one
   if (!conversation) {
-    let { data: newConversation, error: insertError } = await supabase
-      .from('conversations')
-      .insert({
-        participant1_id: userId,
-        participant2_id: vetId,
-      })
-      .select('id')
-      .single()
-
-    if (insertError) {
-      console.error('Error creating new conversation:', insertError)
-      return redirect('/')
-    }
-    conversation = newConversation
+    const newConversationId = uuidv4();
+    const insertStmt = db.prepare(
+      `INSERT INTO conversations (id, participant1_id, participant2_id, created_at, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    );
+    insertStmt.run(newConversationId, userId, vetId);
+    conversation = { id: newConversationId };
   }
 
-  // Redirect to the conversation page
-  revalidatePath(`/messages/${conversation.id}`)
-  redirect(`/messages/${conversation.id}`)
+  revalidatePath(`/messages/${conversation.id}`);
+  redirect(`/messages/${conversation.id}`);
 }

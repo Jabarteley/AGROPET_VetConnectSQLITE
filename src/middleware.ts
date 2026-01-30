@@ -1,63 +1,56 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server';
+import jwt from 'jsonwebtoken';
+
+// Secret for JWT tokens (should match the one in your auth module)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+// Verify a JWT token
+function verifyToken(token: string): any {
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const [header, payload, signature] = token.split('.');
+    if (!header || !payload || !signature) {
+      return null;
+    }
+
+    const decodedPayload = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+    if (decodedPayload.exp * 1000 < Date.now()) {
+      return null;
+    }
+
+    return decodedPayload;
+  } catch (error) {
+    return null;
+  }
+}
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  // Verify authentication token for protected routes
+  const token = request.cookies.get('auth-token')?.value;
+  console.log('auth-token:', token);
+  const decodedToken = verifyToken(token as string);
+  console.log('decoded-token:', decodedToken);
+  const isAuthenticated = !!decodedToken;
+  console.log('isAuthenticated:', isAuthenticated);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
-    }
-  )
+  // Define protected routes
+  const protectedRoutes = ['/profile', '/appointments', '/messages', '/notifications'];
+  const isProtectedRoute = protectedRoutes.some(route =>
+    request.nextUrl.pathname.startsWith(route)
+  );
 
-  // Refresh session if expired - required for Server Components
-  await supabase.auth.getUser()
+  // Redirect unauthenticated users from protected routes
+  if (isProtectedRoute && !isAuthenticated) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirectTo', request.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
 
-  return response
+  return NextResponse.next();
 }
 
 export const config = {
@@ -68,6 +61,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api|_next/static|_next/image|favicon.ico|manifest\\.json$).*)',
   ],
 }

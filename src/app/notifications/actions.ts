@@ -1,82 +1,106 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
+import { verifyToken, getUserById } from '@/lib/auth'
+import { notificationOperations, appointmentOperations, profileOperations } from '@/lib/dbOperations'
 
 export async function createNotification(userId: string, title: string, message: string, type: 'info' | 'warning' | 'success' | 'error' | 'appointment_reminder' = 'info') {
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const token = cookieStore.get('auth-token')?.value
+  const decodedToken = verifyToken(token as string)
 
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert([{ 
+  if (!decodedToken) {
+    return { error: 'Authentication required' }
+  }
+
+  const user = getUserById(decodedToken.userId)
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  try {
+    const newNotification = notificationOperations.create({
       user_id: userId,
       title,
       message,
-      type
-    }])
-    .select()
-    .single()
+      type,
+      is_read: false
+    })
 
-  if (error) {
+    // Revalidate the relevant pages
+    revalidatePath('/profile') // or wherever notifications are displayed
+
+    return { data: newNotification }
+  } catch (error: any) {
     console.error('Error creating notification:', error)
-    return { error: 'Database error: Could not create notification.' }
+    return { error: error.message || 'Database error: Could not create notification.' }
   }
-
-  // Revalidate the relevant pages
-  revalidatePath('/profile') // or wherever notifications are displayed
-  
-  return { data }
 }
 
 export async function scheduleAppointmentReminders() {
-  const supabase = createClient()
-  
-  // Get appointments that are scheduled for tomorrow
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStart = new Date(tomorrow.setHours(0, 0, 0, 0)).toISOString()
-  const tomorrowEnd = new Date(tomorrow.setHours(23, 59, 59, 999)).toISOString()
-  
-  const { data: appointments, error } = await supabase
-    .from('appointments')
-    .select(`
-      id,
-      user_id,
-      vet_id,
-      appointment_datetime,
-      profiles!appointments_user_id_fkey(name)
-    `)
-    .gte('appointment_datetime', tomorrowStart)
-    .lt('appointment_datetime', tomorrowEnd)
-    .eq('status', 'approved')
-  
-  if (error) {
-    console.error('Error fetching appointments for reminders:', error)
-    return { error: 'Database error: Could not fetch appointments for reminders.' }
+  const cookieStore = cookies()
+  const token = cookieStore.get('auth-token')?.value
+  const decodedToken = verifyToken(token as string)
+
+  if (!decodedToken) {
+    return { error: 'Authentication required' }
   }
-  
-  if (!appointments || appointments.length === 0) {
-    return { message: 'No appointments found for tomorrow.' }
+
+  const user = getUserById(decodedToken.userId)
+  if (!user) {
+    return { error: 'User not found' }
   }
-  
-  // Create reminder notifications for each appointment
-  for (const appointment of appointments) {
-    // Send reminder to client
-    await createNotification(
-      appointment.user_id,
-      'Appointment Reminder',
-      `You have an appointment tomorrow at ${new Date(appointment.appointment_datetime).toLocaleString()}.`,
-      'appointment_reminder'
-    )
+
+  try {
+    // Get appointments that are scheduled for tomorrow
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStart = new Date(tomorrow.setHours(0, 0, 0, 0)).toISOString()
+    const tomorrowEnd = new Date(tomorrow.setHours(23, 59, 59, 999)).toISOString()
+
+    // Get all appointments
+    const allAppointments = appointmentOperations.getAll() || []
     
-    // Send reminder to veterinarian
-    await createNotification(
-      appointment.vet_id,
-      'Appointment Reminder',
-      `You have an appointment tomorrow with ${appointment.profiles?.name || 'a client'} at ${new Date(appointment.appointment_datetime).toLocaleString()}.`,
-      'appointment_reminder'
-    )
+    // Filter appointments for tomorrow that are approved
+    const appointments = allAppointments.filter(appointment => {
+      const appointmentDate = new Date(appointment.appointment_datetime)
+      return (
+        appointmentDate >= new Date(tomorrowStart) &&
+        appointmentDate < new Date(tomorrowEnd) &&
+        appointment.status === 'approved'
+      )
+    })
+
+    if (!appointments || appointments.length === 0) {
+      return { message: 'No appointments found for tomorrow.' }
+    }
+
+    // Create reminder notifications for each appointment
+    for (const appointment of appointments) {
+      // Get client profile to get name
+      const clientProfile = profileOperations.getById(appointment.user_id)
+      
+      // Send reminder to client
+      await createNotification(
+        appointment.user_id,
+        'Appointment Reminder',
+        `You have an appointment tomorrow at ${new Date(appointment.appointment_datetime).toLocaleString()}.`,
+        'appointment_reminder'
+      )
+
+      // Send reminder to veterinarian
+      await createNotification(
+        appointment.vet_id,
+        'Appointment Reminder',
+        `You have an appointment tomorrow with ${clientProfile?.name || 'a client'} at ${new Date(appointment.appointment_datetime).toLocaleString()}.`,
+        'appointment_reminder'
+      )
+    }
+
+    return { message: `Scheduled reminders for ${appointments.length} appointments.` }
+  } catch (error: any) {
+    console.error('Error scheduling appointment reminders:', error)
+    return { error: error.message || 'Database error: Could not fetch appointments for reminders.' }
   }
-  
-  return { message: `Scheduled reminders for ${appointments.length} appointments.` }
 }

@@ -1,19 +1,23 @@
-import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { verifyToken, getUserById } from '@/lib/auth'
 
 export default async function AuthButton() {
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const token = cookieStore.get('auth-token')?.value
+  const decodedToken = token ? verifyToken(token) : null
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null;
+  if (decodedToken) {
+    user = getUserById(decodedToken.userId);
+  }
 
   const signOut = async () => {
     'use server'
 
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    // Clear the auth token cookie
+    cookies().delete('auth-token')
     return redirect('/login')
   }
 

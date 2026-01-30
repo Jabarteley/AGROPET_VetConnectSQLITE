@@ -1,31 +1,54 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+import { profileOperations } from '@/lib/dbOperations';
+
+// Secret for JWT tokens (should match the one in your auth module)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+// Verify a JWT token
+function verifyToken(token: string): any {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return null;
+  }
+}
+
+// Function to get user by ID
+function getUserById(id: string) {
+  try {
+    return profileOperations.getById(id);
+  } catch (error) {
+    console.error('Error getting user by ID:', error);
+    return null;
+  }
+}
 
 export default async function Home() {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Check for authentication token
+  let user = null;
+  let profile = null;
 
-  let profile = null
-  if (user) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('name, role')
-      .eq('id', user.id)
-      .single()
-    profile = data
+  const tokenCookie = cookies().get('auth-token');
+  if (tokenCookie && tokenCookie.value) {
+    const decoded = verifyToken(tokenCookie.value);
+    if (decoded && decoded.userId) {
+      user = { id: decoded.userId };
+      profile = getUserById(decoded.userId);
+    }
   }
 
   const getWelcomeMessage = () => {
     if (profile && user) {
       if (profile.role === 'veterinarian') {
-        return `Welcome back, Dr. ${profile.name || user.email}`;
+        return `Welcome back, Dr. ${profile.name || user.id}`;
       }
-      return `Welcome back, ${profile.name || user.email}`;
+      return `Welcome back, ${profile.name || user.id}`;
     }
     return 'AGROPET VetConnect';
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">

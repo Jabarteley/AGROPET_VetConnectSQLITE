@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import ProfilePhotoUpload from '@/components/ProfilePhotoUpload'
 
 // Define a type for the profile data
 type Profile = {
@@ -15,12 +14,19 @@ type Profile = {
   specialization: string | null
   service_regions: string | null
   verification_status: 'pending' | 'verified' | 'rejected'
+  profile_photo: string | null
 } | null
 
+type User = {
+  id: string
+  email: string
+  role: string
+}
+
 export default function ProfileForm({ user, profile }: { user: User; profile: Profile }) {
-  const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [profilePhoto, setProfilePhoto] = useState(profile?.profile_photo || null)
 
   // Form state
   const [name, setName] = useState(profile?.name || '')
@@ -35,6 +41,7 @@ export default function ProfileForm({ user, profile }: { user: User; profile: Pr
     setQualifications(profile?.qualifications || '')
     setSpecialization(profile?.specialization || '')
     setServiceRegions(profile?.service_regions || '')
+    setProfilePhoto(profile?.profile_photo || null)
   }, [profile])
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -42,32 +49,47 @@ export default function ProfileForm({ user, profile }: { user: User; profile: Pr
     setLoading(true)
     setMessage(null)
 
-    const updates = {
-      id: user.id,
-      email: user.email, // Include email to satisfy NOT NULL constraint
-      name,
-      location,
-      // Only include vet-specific fields if the role is veterinarian
-      ...(profile?.role === 'veterinarian' && {
-        qualifications,
-        specialization,
-        service_regions: serviceRegions,
-      }),
-      updated_at: new Date(),
+    try {
+      const updates = {
+        name,
+        location,
+        // Only include vet-specific fields if the role is veterinarian
+        ...(profile?.role === 'veterinarian' && {
+          qualifications,
+          specialization,
+          service_regions: serviceRegions,
+        }),
+      }
+
+      const res = await fetch(`/api/profile/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        setMessage('Error updating profile: ' + result.error)
+      } else {
+        setMessage('Profile updated successfully!')
+      }
+    } catch (error) {
+      setMessage('Error updating profile: ' + error)
     }
 
-    const { error } = await supabase.from('profiles').upsert(updates)
-
-    if (error) {
-      setMessage('Error updating profile: ' + error.message)
-    } else {
-      setMessage('Profile updated successfully!')
-    }
     setLoading(false)
   }
 
   return (
     <form onSubmit={handleUpdateProfile} className="space-y-6 bg-white p-8 rounded-lg shadow-md">
+      <div className="flex justify-center">
+        <ProfilePhotoUpload
+          currentPhotoUrl={profilePhoto}
+          onPhotoUpdate={setProfilePhoto}
+        />
+      </div>
+
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700">
           Email

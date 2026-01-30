@@ -1,93 +1,92 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import AdminDashboard from '@/components/AdminDashboard'
+import { redirect } from 'next/navigation';
+import AdminDashboard from '@/components/AdminDashboard';
+import { cookies } from 'next/headers';
+import { verifyToken, getUserById } from '@/lib/auth';
+import { profileOperations, appointmentOperations } from '@/lib/dbOperations';
+import db from '@/lib/db';
 
 export default async function AdminDashboardPage() {
-  const supabase = createClient()
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const decodedToken = verifyToken(token as string);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (!decodedToken) {
+    return redirect('/login');
+  }
+
+  const user = getUserById(decodedToken.userId);
 
   if (!user) {
-    return redirect('/login')
+    return redirect('/login');
   }
 
-  // Fetch the user's profile to check their role
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const profile = profileOperations.getById(user.id);
 
-  if (profileError || profile?.role !== 'admin') {
-    // If not an admin, redirect them
-    console.warn('Non-admin user attempted to access admin dashboard.')
-    return redirect('/') // Or a '/permission-denied' page
+  if (!profile || profile.role !== 'admin') {
+    console.warn('Non-admin user attempted to access admin dashboard.');
+    return redirect('/');
   }
 
-  // Fetch all pending veterinarian profiles
-  const { data: pendingVets, error: vetsError } = await supabase
-    .from('profiles')
-    .select('id, name, email, location, specialization, verification_status')
-    .eq('role', 'veterinarian')
-    .eq('verification_status', 'pending')
-    .order('created_at', { ascending: true })
-
-  if (vetsError) {
-    console.error('Error fetching pending vets:', vetsError)
+  const pendingVetsResult = profileOperations.getAll({ role: 'veterinarian', verification_status: 'pending' });
+  if (!pendingVetsResult) {
     return (
       <div className="p-4 text-center text-red-500">
         <p>Could not fetch pending veterinarians.</p>
       </div>
-    )
+    );
   }
 
-  // Fetch all users for user management
-  const { data: allUsers, error: usersError } = await supabase
-    .from('profiles')
-    .select('id, email, role, created_at')
-    .order('created_at', { ascending: false })
+  // Cast to the expected type for the AdminDashboard component
+  const pendingVets = pendingVetsResult as VetProfile[];
 
-  if (usersError) {
-    console.error('Error fetching users:', usersError)
+  const allUsersResult = profileOperations.getAll();
+  if (!allUsersResult) {
     return (
       <div className="p-4 text-center text-red-500">
         <p>Could not fetch users.</p>
       </div>
-    )
+    );
   }
 
-  // Fetch appointment statistics for admin dashboard
-  const { count: totalAppointments } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
+  // Cast to the expected type for the AdminDashboard component
+  const allUsers = allUsersResult as UserProfile[];
 
-  const { count: pendingAppointments } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending')
+  // Define the types that match the AdminDashboard component expectations
+  type VetProfile = {
+    id: string
+    name: string | null
+    email: string
+    location: string | null
+    specialization: string | null
+    verification_status: string
+  }
 
-  const { count: completedAppointments } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'completed')
+  type UserProfile = {
+    id: string
+    email: string
+    role: string
+    created_at: string
+  }
 
-  const { count: cancelledAppointments } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'cancelled')
+  interface CountResult {
+    count: number;
+  }
+
+  const totalAppointments = (db.prepare('SELECT COUNT(*) as count FROM appointments').get() as CountResult).count;
+  const pendingAppointments = (db.prepare('SELECT COUNT(*) as count FROM appointments WHERE status = ?').get('pending') as CountResult).count;
+  const completedAppointments = (db.prepare('SELECT COUNT(*) as count FROM appointments WHERE status = ?').get('completed') as CountResult).count;
+  const cancelledAppointments = (db.prepare('SELECT COUNT(*) as count FROM appointments WHERE status = ?').get('cancelled') as CountResult).count;
 
   const appointmentStats = {
     total: totalAppointments || 0,
     pending: pendingAppointments || 0,
     completed: completedAppointments || 0,
-    cancelled: cancelledAppointments || 0
-  }
+    cancelled: cancelledAppointments || 0,
+  };
 
   return (
     <div className="flex flex-col items-center p-4">
       <AdminDashboard pendingVets={pendingVets} allUsers={allUsers} appointmentStats={appointmentStats} />
     </div>
-  )
+  );
 }

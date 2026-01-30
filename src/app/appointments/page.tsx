@@ -1,72 +1,74 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import AppointmentsList from '@/components/AppointmentsList'
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import AppointmentsList from '@/components/AppointmentsList';
+import { verifyToken, getUserById } from '@/lib/auth';
+import { appointmentOperations, profileOperations } from '@/lib/dbOperations';
+import db from '@/lib/db';
 
 export default async function AppointmentsPage() {
-  const supabase = createClient()
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const decodedToken = verifyToken(token as string);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return redirect('/login?redirectTo=/appointments')
+  if (!decodedToken) {
+    return redirect('/login?redirectTo=/appointments');
   }
 
-  // Fetch the user's role and name from their profile
-  const { data: profile } = await supabase.from('profiles').select('role, name').eq('id', user.id).single()
+  const user = getUserById(decodedToken.userId);
+
+  if (!user) {
+    return redirect('/login?redirectTo=/appointments');
+  }
+
+  const profile = profileOperations.getById(user.id);
 
   const getWelcomeMessage = () => {
     if (profile) {
       if (profile.role === 'veterinarian') {
-        return `Dr. ${profile.name || user.email}'s Appointment Dashboard`
+        return `Dr. ${profile.name || user.email}'s Appointment Dashboard`;
       }
-      return `${profile.name || user.email}'s Appointments`
+      return `${profile.name || user.email}'s Appointments`;
     }
-    return 'My Appointments'
+    return 'My Appointments';
+  };
+
+  const appointments = appointmentOperations.getByUserId(user.id);
+
+  if (!appointments) {
+    return <p className="p-4 text-center text-red-500">Could not fetch appointments.</p>;
   }
 
-  // Fetch all appointments related to the user
-  const { data: appointments, error: appointmentsError } = await supabase
-    .from('appointments')
-    .select('*')
-    .or(`user_id.eq.${user.id},vet_id.eq.${user.id}`)
-    .order('appointment_datetime', { ascending: false })
+  const userIdSet = new Set(appointments.flatMap((appt: any) => [appt.user_id, appt.vet_id]));
+  const userIds = Array.from(userIdSet);
 
-  if (appointmentsError) {
-    console.error('Error fetching appointments:', appointmentsError)
-    // Handle error in UI
-    return <p className="p-4 text-center text-red-500">Could not fetch appointments.</p>
+  if (userIds.length === 0) {
+    return (
+      <div className="flex flex-col items-center p-4 w-full">
+        <div className="w-full max-w-4xl px-4">
+          <h1 className="text-3xl font-bold text-gray-800 mb-8 text-center sm:text-left">{getWelcomeMessage()}</h1>
+          <AppointmentsList initialAppointments={[]} currentUser={{ id: user.id, role: profile?.role }} />
+        </div>
+      </div>
+    );
   }
 
-  // Extract all unique user IDs from the appointments to fetch their profiles
-  const userIds = [
-    ...new Set(
-      appointments.flatMap((appt) => [appt.user_id, appt.vet_id])
-    ),
-  ]
+  const placeholders = userIds.map(() => '?').join(',');
+  const profiles = db.prepare(`SELECT id, name, email, profile_photo FROM profiles WHERE id IN (${placeholders})`).all(...userIds);
 
-  // Fetch the profiles for all involved users
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('id, name, email')
-    .in('id', userIds)
-
-  if (profilesError) {
-    console.error('Error fetching profiles:', profilesError)
-    // Handle error in UI
-    return <p className="p-4 text-center text-red-500">Could not fetch user profiles.</p>
+  if (!profiles) {
+    return <p className="p-4 text-center text-red-500">Could not fetch user profiles.</p>;
   }
 
-  // Create a map of profile IDs to names for easy lookup
-  const profileMap = new Map(profiles.map((p) => [p.id, p.name || p.email]))
+  const profileMap = new Map(profiles.map((p: any) => [p.id, p.name || p.email]));
+  const profilePhotoMap = new Map(profiles.map((p: any) => [p.id, p.profile_photo]));
 
-  // Add the names to the appointment objects
-  const enrichedAppointments = appointments.map((appt) => ({
+  const enrichedAppointments = appointments.map((appt: any) => ({
     ...appt,
     client_name: profileMap.get(appt.user_id) || 'Unknown',
     vet_name: profileMap.get(appt.vet_id) || 'Unknown',
-  }))
+    client_photo: profilePhotoMap.get(appt.user_id),
+    vet_photo: profilePhotoMap.get(appt.vet_id),
+  }));
 
   return (
     <div className="flex flex-col items-center p-4 w-full">
@@ -78,5 +80,5 @@ export default async function AppointmentsPage() {
         />
       </div>
     </div>
-  )
+  );
 }

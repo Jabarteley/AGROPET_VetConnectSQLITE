@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { updateAppointmentStatus } from '@/app/appointments/actions'
+import VetAppointmentActions from '@/components/VetAppointmentActions'
 
 // Define the type for the enriched appointment
 export type EnrichedAppointment = {
@@ -11,10 +12,16 @@ export type EnrichedAppointment = {
   appointment_datetime: string
   status: string
   reason?: string
+  images?: string | null
+  diagnosis?: string | null
+  prescription?: string | null
+  vet_comments?: string | null
   created_at: string
   updated_at?: string
   client_name: string
   vet_name: string
+  client_photo?: string | null
+  vet_photo?: string | null
 }
 
 type CurrentUser = {
@@ -52,6 +59,14 @@ export default function AppointmentsList({
     setLoading(false)
   }
 
+  const handleAppointmentUpdate = (updatedAppointment: EnrichedAppointment) => {
+    setAppointments(prev =>
+      prev.map(appt =>
+        appt.id === updatedAppointment.id ? updatedAppointment : appt
+      )
+    );
+  };
+
   const isVet = currentUser.role === 'veterinarian'
 
   const clientAppointments = appointments.filter((appt) => appt.user_id === currentUser.id)
@@ -63,6 +78,16 @@ export default function AppointmentsList({
       timeStyle: 'short',
     })
   }
+
+  const parseImages = (imagesJson: string | null) => {
+    if (!imagesJson) return [];
+    try {
+      return JSON.parse(imagesJson);
+    } catch (e) {
+      console.error('Error parsing images JSON:', e);
+      return [];
+    }
+  };
 
   return (
     <div className="space-y-8 w-full">
@@ -94,6 +119,52 @@ export default function AppointmentsList({
                       appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
                   </p>
                 </div>
+
+                {/* Show reason and images for client appointments */}
+                {appt.reason && (
+                  <div className="mt-2">
+                    <p><strong>Reason:</strong> {appt.reason}</p>
+                  </div>
+                )}
+
+                {appt.images && parseImages(appt.images).length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-medium">Supporting Images:</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {parseImages(appt.images).map((imageUrl: string, idx: number) => (
+                        <a key={idx} href={imageUrl} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={imageUrl}
+                            alt={`Supporting image ${idx + 1}`}
+                            className="h-16 w-16 object-cover rounded border cursor-pointer hover:opacity-90"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Show diagnosis, prescription, and comments when appointment is completed */}
+                {appt.status === 'completed' && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Appointment Outcome</h3>
+                    {appt.diagnosis && (
+                      <div className="mb-2">
+                        <p><strong>Diagnosis:</strong> {appt.diagnosis}</p>
+                      </div>
+                    )}
+                    {appt.prescription && (
+                      <div className="mb-2">
+                        <p><strong>Prescription:</strong> {appt.prescription}</p>
+                      </div>
+                    )}
+                    {appt.vet_comments && (
+                      <div className="mb-2">
+                        <p><strong>Comments:</strong> {appt.vet_comments}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -124,6 +195,31 @@ export default function AppointmentsList({
                         appt.status === 'cancelled' ? 'text-red-600' : 'text-yellow-600'}`}>{appt.status}</span>
                     </p>
                   </div>
+
+                  {/* Show reason and images for vet appointments */}
+                  {appt.reason && (
+                    <div className="mt-2">
+                      <p><strong>Reason:</strong> {appt.reason}</p>
+                    </div>
+                  )}
+
+                  {appt.images && parseImages(appt.images).length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-medium">Supporting Images:</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {parseImages(appt.images).map((imageUrl: string, idx: number) => (
+                          <a key={idx} href={imageUrl} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={imageUrl}
+                              alt={`Supporting image ${idx + 1}`}
+                              className="h-16 w-16 object-cover rounded border cursor-pointer hover:opacity-90"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {appt.status === 'pending' && (
                     <div className="mt-4 flex flex-col sm:flex-row gap-2">
                       <button
@@ -142,16 +238,12 @@ export default function AppointmentsList({
                       </button>
                     </div>
                   )}
-                  {appt.status === 'approved' && (
-                    <div className="mt-4">
-                      <button
-                        onClick={() => handleStatusUpdate(appt.id, 'completed')}
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        Mark as Completed
-                      </button>
-                    </div>
+
+                  {(appt.status === 'approved' || appt.status === 'completed') && (
+                    <VetAppointmentActions
+                      appointment={appt}
+                      onUpdate={(updatedAppt) => handleAppointmentUpdate(updatedAppt)}
+                    />
                   )}
                 </div>
               ))}

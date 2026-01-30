@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
+import { v4 as uuidv4 } from 'uuid';
 
 type Message = {
-  id: number
+  id: string // IDs are UUIDs in the database
   conversation_id: string
   sender_id: string
-  receiver_id: string
   content: string
   created_at: string
 }
@@ -17,6 +16,12 @@ type Profile = {
   name: string | null
   email: string
 } | null
+
+type User = {
+  id: string;
+  email: string;
+  role?: string;
+}
 
 export default function ChatRoom({
   conversationId,
@@ -31,10 +36,10 @@ export default function ChatRoom({
   currentUserProfile: Profile
   otherParticipantProfile: Profile
 }) {
-  const supabase = createClient()
-  const [messages, setMessages] = useState(initialMessages)
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [newMessage, setNewMessage] = useState('')
   const messagesEndRef = useRef<null | HTMLDivElement>(null)
+  const router = useRouter()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -44,56 +49,61 @@ export default function ChatRoom({
     scrollToBottom()
   }, [messages])
 
+  // Simulate receiving new messages (placeholder implementation)
   useEffect(() => {
-    const channel = supabase
-      .channel(`messages:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          setMessages((prevMessages) => [...prevMessages, payload.new as Message])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [supabase, conversationId])
+    
+  }, [conversationId])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (newMessage.trim() === '') return
 
-    // Find the receiver_id from the conversation
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('participant1_id, participant2_id')
-      .eq('id', conversationId)
-      .single()
-      
-    if (!conversation) return;
-      
-    const receiverId = conversation.participant1_id === currentUser.id 
-      ? conversation.participant2_id 
-      : conversation.participant1_id;
+    // Create a temporary ID that's guaranteed to be unique
+    const tempId = `temp-${uuidv4()}`;
 
-    const { error } = await supabase.from('messages').insert({
+    // In a real implementation, you would send the message to the server
+    const newMsg: Message = {
+      id: tempId, // temporary ID
       conversation_id: conversationId,
       sender_id: currentUser.id,
-      receiver_id: receiverId,
       content: newMessage.trim(),
-    })
+      created_at: new Date().toISOString()
+    };
 
-    if (error) {
+    // Optimistically update UI
+    setMessages(prev => [...prev, newMsg])
+    setNewMessage('')
+
+    // Send to server
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: newMessage.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send message')
+      }
+
+      const savedMessage = await response.json();
+
+      // Update the message with the server-generated ID and data
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === tempId ? { ...savedMessage } : msg
+        )
+      );
+    } catch (error: any) {
       console.error('Error sending message:', error)
-    } else {
-      setNewMessage('')
+      // Rollback optimistic update
+      setMessages(prev => prev.filter(msg => msg.id !== tempId))
+      // Optionally show an error message to the user
+      alert(`Error sending message: ${error.message || 'Unknown error'}`);
     }
   }
 

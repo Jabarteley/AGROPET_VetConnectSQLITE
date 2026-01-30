@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 type Notification = {
   id: string
@@ -14,94 +13,56 @@ type Notification = {
 }
 
 export default function NotificationList() {
-  const supabase = createClient()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchNotifications()
     
-    // Set up real-time subscription for new notifications
-    const channel = supabase
-      .channel('notifications-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-        },
-        (payload) => {
-          // Only add notification if it belongs to the current user
-          const currentUserId = supabase.auth.getUser().then(({ data }) => data.user?.id)
-          currentUserId.then((userId) => {
-            if (payload.new.user_id === userId) {
-              setNotifications((prev) => [payload.new as Notification, ...prev])
-            }
-          })
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [supabase])
+    // Set up polling for new notifications
+    const interval = setInterval(fetchNotifications, 30000) // Poll every 30 seconds
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchNotifications = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      setLoading(false)
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    if (error) {
+    try {
+      const response = await fetch('/api/notifications')
+      if (response.ok) {
+        const { notifications } = await response.json()
+        setNotifications(notifications)
+      }
+    } catch (error) {
       console.error('Error fetching notifications:', error)
-    } else {
-      setNotifications(data as Notification[])
     }
     setLoading(false)
   }
 
   const markAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
+    try {
+      await fetch(`/api/notifications/${id}/read`, {
+        method: 'PATCH',
+      })
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => n.id === id ? {...n, is_read: true} : n)
+      )
+    } catch (error) {
       console.error('Error marking notification as read:', error)
-    } else {
-      setNotifications(notifications.map(notif => 
-        notif.id === id ? { ...notif, is_read: true } : notif
-      ))
     }
   }
 
   const markAllAsRead = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) return
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', user.id)
-      .is('is_read', false)
-
-    if (error) {
+    try {
+      await fetch('/api/notifications/mark-all-read', {
+        method: 'PATCH',
+      })
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => ({...n, is_read: true}))
+      )
+    } catch (error) {
       console.error('Error marking all notifications as read:', error)
-    } else {
-      setNotifications(notifications.map(notif => ({ ...notif, is_read: true })))
     }
   }
 
@@ -126,7 +87,7 @@ export default function NotificationList() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Notifications</h2>
         {unreadCount > 0 && (
-          <button 
+          <button
             onClick={markAllAsRead}
             className="text-sm text-indigo-600 hover:text-indigo-800"
           >
@@ -134,7 +95,7 @@ export default function NotificationList() {
           </button>
         )}
       </div>
-      
+
       {notifications.length === 0 ? (
         <p className="text-gray-500 text-center py-4">No notifications</p>
       ) : (
@@ -149,7 +110,7 @@ export default function NotificationList() {
               <div className="flex justify-between">
                 <h3 className="text-sm">{notification.title}</h3>
                 {!notification.is_read && (
-                  <button 
+                  <button
                     onClick={() => markAsRead(notification.id)}
                     className="text-xs underline"
                   >
