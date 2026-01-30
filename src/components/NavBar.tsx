@@ -42,9 +42,15 @@ export default async function NavBar() {
             {/* Primary Nav (Authenticated Users) */}
             {user && (
               <div className="hidden md:flex items-center space-x-2">
-                <Link href="/appointments" className="py-2 px-3 text-gray-700 hover:text-indigo-600 rounded">
-                  Appointments
-                </Link>
+                {userRole === 'veterinarian' ? (
+                  <Link href="/veterinarian-dashboard" className="py-2 px-3 text-gray-700 hover:text-indigo-600 rounded">
+                    Vet Dashboard
+                  </Link>
+                ) : (
+                  <Link href="/appointments" className="py-2 px-3 text-gray-700 hover:text-indigo-600 rounded">
+                    Appointments
+                  </Link>
+                )}
                 <Link href="/messages" className="py-2 px-3 text-gray-700 hover:text-indigo-600 rounded">
                   Messages
                 </Link>

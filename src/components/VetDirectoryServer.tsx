@@ -10,6 +10,7 @@ type VetProfile = {
   specialization: string | null
   service_regions: string | null
   profile_photo: string | null
+  is_available: boolean
 }
 
 type VetDirectoryProps = {
@@ -63,13 +64,22 @@ export default async function VetDirectory({ searchTerm = '' }: VetDirectoryProp
                 <p className="text-gray-600">
                   <strong>Service Regions:</strong> {vet.service_regions || 'N/A'}
                 </p>
+                <p className={`mt-2 font-semibold ${vet.is_available ? 'text-green-600' : 'text-red-600'}`}>
+                  Status: {vet.is_available ? 'Available' : 'Unavailable'}
+                </p>
               </div>
               <div className="mt-4 flex flex-col space-y-2">
                 <Link
                   href={`/veterinarians/${vet.id}/book`}
-                  className="w-full text-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className={`w-full text-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                    vet.is_available
+                      ? 'bg-indigo-600 hover:bg-indigo-700'
+                      : 'bg-gray-400 cursor-not-allowed'
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+                  prefetch={false}
+                  aria-disabled={!vet.is_available}
                 >
-                  Book Appointment
+                  {vet.is_available ? 'Book Appointment' : 'Not Available'}
                 </Link>
                 {/* Message Vet Button */}
                 <MessageVetForm vetId={vet.id} />
