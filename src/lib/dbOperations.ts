@@ -326,3 +326,66 @@ function normalizeRow(row: any): Record<string, any> {
   
   return normalized;
 }
+
+// Veterinarian schedule operations
+export const vetScheduleOperations = {
+  // Get schedule by vet ID
+  getByVetId: (vetId: string) => {
+    const stmt = db.prepare(`
+      SELECT * FROM veterinarian_schedules
+      WHERE vet_id = ?
+      ORDER BY day_of_week ASC
+    `);
+    const results = stmt.all(vetId);
+    return results.map(normalizeRow);
+  },
+
+  // Create or update schedule for a vet
+  upsertForVet: (vetId: string, scheduleData: any[]) => {
+    // Begin transaction to ensure data consistency
+    db.exec('BEGIN TRANSACTION');
+
+    try {
+      // Delete existing schedule for this vet
+      const deleteStmt = db.prepare('DELETE FROM veterinarian_schedules WHERE vet_id = ?');
+      deleteStmt.run(vetId);
+
+      // Insert new schedule
+      const insertStmt = db.prepare(`
+        INSERT INTO veterinarian_schedules (id, vet_id, day_of_week, start_time, end_time, is_available, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+
+      for (const daySchedule of scheduleData) {
+        insertStmt.run(
+          uuidv4(),
+          vetId,
+          daySchedule.day_of_week,
+          daySchedule.start_time,
+          daySchedule.end_time,
+          daySchedule.is_available ? 1 : 0
+        );
+      }
+
+      // Commit the transaction
+      db.exec('COMMIT');
+
+      // Return the updated schedule
+      return vetScheduleOperations.getByVetId(vetId);
+    } catch (error) {
+      // Rollback the transaction in case of error
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  },
+
+  // Get available times for a specific day for a vet
+  getAvailableTimesForDay: (vetId: string, dayOfWeek: number) => {
+    const stmt = db.prepare(`
+      SELECT * FROM veterinarian_schedules
+      WHERE vet_id = ? AND day_of_week = ? AND is_available = 1
+    `);
+    const result = stmt.get(vetId, dayOfWeek);
+    return result ? normalizeRow(result) : null;
+  }
+};

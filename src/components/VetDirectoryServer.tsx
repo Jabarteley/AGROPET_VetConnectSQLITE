@@ -1,6 +1,8 @@
 import { profileOperations } from '@/lib/dbOperations'
 import Link from 'next/link'
 import MessageVetForm from '@/components/MessageVetForm'
+import { Suspense } from 'react'
+import VetScheduleDisplayWrapper from '@/components/VetScheduleDisplayWrapper'
 
 // Define a type for the veterinarian profile data
 type VetProfile = {
@@ -67,6 +69,9 @@ export default async function VetDirectory({ searchTerm = '' }: VetDirectoryProp
                 <p className={`mt-2 font-semibold ${vet.is_available ? 'text-green-600' : 'text-red-600'}`}>
                   Status: {vet.is_available ? 'Available' : 'Unavailable'}
                 </p>
+                <Suspense fallback={<p className="text-gray-500 text-sm">Loading schedule...</p>}>
+                  <VetScheduleDisplayWrapper vetId={vet.id} />
+                </Suspense>
               </div>
               <div className="mt-4 flex flex-col space-y-2">
                 <Link

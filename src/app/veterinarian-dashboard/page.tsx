@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { verifyToken, getUserById } from '@/lib/auth';
 import { profileOperations } from '@/lib/dbOperations';
 import AvailabilityToggle from '@/components/AvailabilityToggle';
+import VetScheduleManager from '@/components/VetScheduleManager';
+import { vetScheduleOperations } from '@/lib/dbOperations';
 
 export default async function VeterinarianDashboard() {
   const cookieStore = cookies();
@@ -32,6 +34,9 @@ export default async function VeterinarianDashboard() {
     );
   }
 
+  // Fetch the veterinarian's schedule
+  const vetSchedule = vetScheduleOperations.getByVetId(user.id);
+
   return (
     <div className="flex flex-col items-center p-4 w-full">
       <div className="w-full max-w-2xl px-4">
@@ -43,7 +48,9 @@ export default async function VeterinarianDashboard() {
           <AvailabilityToggle profile={profile} />
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <VetScheduleManager profile={profile} />
+
+        <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mt-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <a
