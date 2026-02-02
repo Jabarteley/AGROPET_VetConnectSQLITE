@@ -7,9 +7,9 @@ import cloudinary from 'cloudinary';
 
 // Configure Cloudinary
 cloudinary.v2.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dru0vlphj',
-  api_key: process.env.CLOUDINARY_API_KEY || '672287136335912',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'oD92DJkfMim_GjGS6OCuLkChvaQ',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 export async function PUT(request: NextRequest) {
